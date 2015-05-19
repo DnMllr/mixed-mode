@@ -24,8 +24,25 @@
 
 'use strict';
 
+var proxyquire = require('proxyquireify')(require);
+
 var test = require('tape');
-var DOMElement = require('../DOMElement.js');
+
+var Commands = require('../../core/Commands');
+
+var makeBreakPointAt = null;
+var get = null;
+
+var DOMElement = proxyquire('../DOMElement', {
+    '../core/TransformSystem': {
+        makeBreakPointAt: function (path) {
+            return makeBreakPointAt(path);
+        },
+        get: function (path) {
+            return get(path);
+        }
+    }
+});
 
 var IDENT = [
     1, 0, 0, 0,
@@ -41,272 +58,437 @@ function createMockNode(t) {
             this.sentDrawCommands.push(command);
         },
         shown: true,
-        isShown: function() { return this.shown; },
+        isShown: function() {
+            return this.shown;
+        },
         addComponent: function() {
             t.pass('should add itself as a component using addComponent');
         },
         location: 'body/0',
-        getLocation: function() { return this.location; } ,
+        getLocation: function() {
+            return this.location;
+        } ,
         transform: IDENT,
-        getTransform: function() { return this.transform; },
+        getTransform: function() {
+            return this.transform;
+        },
         requestUpdate: function() {
             t.pass('should requestUpdate after onMount');
         },
         size: [0, 0, 0],
-        getSize: function() { return this.size; },
+        getSize: function() {
+            return this.size;
+        },
         sizeMode: [0, 0, 0],
-        getSizeMode: function() { return this.sizeMode; },
+        getSizeMode: function() {
+            return this.sizeMode;
+        },
         uiEvents: [],
-        getUIEvents: function() { return this.uiEvents; },
-        opacity: 1,
-        getOpacity: function() { return this.opacity; }
+        getUIEvents: function() {
+            return this.uiEvents;
+        },
+        opacity: 0.5,
+        getOpacity: function() {
+            return this.opacity;
+        }
     };
 }
 
 test('DOMElement', function(t) {
-    t.test('constructor (default options)', function(t) {
-        t.plan(6);
-
-        t.equal(typeof DOMElement, 'function', 'DOMElement should be a constructor function');
-
-        var node = createMockNode(t);
-        var domElement = new DOMElement(node);
-        domElement.onMount(node, 0);
-
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'WITH', 'body/0', 'DOM', 'INIT_DOM', 'div', 'CHANGE_TRANSFORM', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
-            'should sendDrawCommands after initial onUpdate after when ' +
-            'mounted using onMount'
-        );
-        node.sentDrawCommands.length = 0;
-        domElement.onUpdate();
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'WITH', 'body/0', 'DOM', 'CHANGE_SIZE', 0, 0, 'CHANGE_PROPERTY', 'position', 'absolute', 'CHANGE_PROPERTY', '-webkit-transform-origin', '0% 0%', 'CHANGE_PROPERTY', 'transform-origin', '0% 0%', 'CHANGE_PROPERTY', '-webkit-backface-visibility', 'visible', 'CHANGE_PROPERTY', 'backface-visibility', 'visible', 'CHANGE_PROPERTY', '-webkit-transform-style', 'preserve-3d', 'CHANGE_PROPERTY', 'transform-style', 'preserve-3d', 'CHANGE_PROPERTY', '-webkit-tap-highlight-color', 'transparent', 'CHANGE_PROPERTY', 'pointer-events', 'auto', 'CHANGE_PROPERTY', 'z-index', '1', 'CHANGE_PROPERTY', 'box-sizing', 'border-box', 'CHANGE_PROPERTY', '-moz-box-sizing', 'border-box', 'CHANGE_PROPERTY', '-webkit-box-sizing', 'border-box', 'CHANGE_PROPERTY', 'display', true, 'CHANGE_PROPERTY', 'opacity', 1, 'CHANGE_ATTRIBUTE', 'data-fa-path', 'body/0' ],
-            'should send initial styles on first update'
-        );
-        node.sentDrawCommands.length = 0;
-        domElement.onUpdate();
-        t.deepEqual(
-            node.sentDrawCommands,
-            [],
-            'should not send any draw commands after inital update'
-        );
-    });
-
-    t.test('constructor (default options)', function(t) {
-        t.comment(
-            'Passing in an initial set of properties, attributes and a ' +
-            'tagName should result into appropriate commands being enqueued'
-        );
-
-        t.plan(6);
-
-        var node = createMockNode(t);
-        var domElement = new DOMElement(node, {
-            tagName: 'section',
-            properties: {
-                background: 'red',
-                color: 'green'
-            },
-            attributes: {
-                title: 'some title'
-            },
-            classes: ['some-class'],
-            content: '<div>Test</div>'
-        });
-        domElement.onMount(node, 0);
-
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'WITH', 'body/0', 'DOM', 'INIT_DOM', 'section', 'CHANGE_TRANSFORM', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
-            'should sendDrawCommands after initial onUpdate after when ' +
-            'mounted using onMount'
-        );
-        node.sentDrawCommands.length = 0;
-        domElement.onUpdate();
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'WITH', 'body/0', 'DOM', 'CHANGE_SIZE', 0, 0, 'ADD_CLASS', 'some-class', 'CHANGE_CONTENT', '<div>Test</div>', 'CHANGE_PROPERTY', 'position', 'absolute', 'CHANGE_PROPERTY', '-webkit-transform-origin', '0% 0%', 'CHANGE_PROPERTY', 'transform-origin', '0% 0%', 'CHANGE_PROPERTY', '-webkit-backface-visibility', 'visible', 'CHANGE_PROPERTY', 'backface-visibility', 'visible', 'CHANGE_PROPERTY', '-webkit-transform-style', 'preserve-3d', 'CHANGE_PROPERTY', 'transform-style', 'preserve-3d', 'CHANGE_PROPERTY', '-webkit-tap-highlight-color', 'transparent', 'CHANGE_PROPERTY', 'pointer-events', 'auto', 'CHANGE_PROPERTY', 'z-index', '1', 'CHANGE_PROPERTY', 'box-sizing', 'border-box', 'CHANGE_PROPERTY', '-moz-box-sizing', 'border-box', 'CHANGE_PROPERTY', '-webkit-box-sizing', 'border-box', 'CHANGE_PROPERTY', 'display', true, 'CHANGE_PROPERTY', 'opacity', 1, 'CHANGE_PROPERTY', 'background', 'red', 'CHANGE_PROPERTY', 'color', 'green', 'CHANGE_ATTRIBUTE', 'title', 'some title', 'CHANGE_ATTRIBUTE', 'data-fa-path', 'body/0' ],
-            'should send initial styles on first update'
-        );
-        node.sentDrawCommands.length = 0;
-        domElement.onUpdate();
-        t.deepEqual(
-            node.sentDrawCommands,
-            [],
-            'should not send any draw commands after inital update'
-        );
-    });
-
-    t.test('should get initial spec from node', function(t) {
-        t.plan(5);
-
-        var node = createMockNode(t);
-
-        node.sentDrawCommands = ['EXISTING', 'DRAW', 'COMMANDS'];
-        node.shown = false;
-        node.location = 'body/4/45/4/5';
-        node.transform = [
-            0.5, 0, 0, 0,
-            0, 0.5, 0, 0,
-            0, 0, 0.5, 0,
-            0, 0, 0, 0.5
-        ];
-        node.size = [100, 200, 300];
-        node.sizeMode = [1, 1, 1];
-        node.uiEvents = [];
-        node.opacity = 0.4;
-
-        var domElement = new DOMElement(node);
-        domElement.onMount(node, 3);
-
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'EXISTING', 'DRAW', 'COMMANDS', 'WITH', 'body/4/45/4/5', 'DOM', 'INIT_DOM', 'div', 'CHANGE_TRANSFORM', 0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5 ],
-            'should sendDrawCommands after initial onUpdate after when ' +
-            'mounted using onMount. Should have used Node spec.'
-        );
-        node.sentDrawCommands.length = 0;
-        domElement.onUpdate();
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'WITH', 'body/4/45/4/5', 'DOM', 'CHANGE_SIZE', 100, 200, 'CHANGE_PROPERTY', 'position', 'absolute', 'CHANGE_PROPERTY', '-webkit-transform-origin', '0% 0%', 'CHANGE_PROPERTY', 'transform-origin', '0% 0%', 'CHANGE_PROPERTY', '-webkit-backface-visibility', 'visible', 'CHANGE_PROPERTY', 'backface-visibility', 'visible', 'CHANGE_PROPERTY', '-webkit-transform-style', 'preserve-3d', 'CHANGE_PROPERTY', 'transform-style', 'preserve-3d', 'CHANGE_PROPERTY', '-webkit-tap-highlight-color', 'transparent', 'CHANGE_PROPERTY', 'pointer-events', 'auto', 'CHANGE_PROPERTY', 'z-index', '1', 'CHANGE_PROPERTY', 'box-sizing', 'border-box', 'CHANGE_PROPERTY', '-moz-box-sizing', 'border-box', 'CHANGE_PROPERTY', '-webkit-box-sizing', 'border-box', 'CHANGE_PROPERTY', 'opacity', 0.4, 'CHANGE_PROPERTY', 'background', 'red', 'CHANGE_PROPERTY', 'color', 'green', 'CHANGE_ATTRIBUTE', 'data-fa-path', 'body/4/45/4/5' ],
-            'should send initial styles on first update. Should take into ' +
-            'account size, UI Events etc. from Node'
-        );
-        node.sentDrawCommands.length = 0;
-        domElement.onUpdate();
-        t.deepEqual(
-            node.sentDrawCommands,
-            [],
-            'should not send any draw commands after inital update'
-        );
-    });
-
-    t.test('onMount, onUpdate, onDismount lifecyle', function(t) {
-        t.plan(11);
-
-        var node = createMockNode(t);
-        var domElement = new DOMElement(node);
-
-        t.equal(typeof domElement.onMount, 'function', 'domElement.onMount should be a function');
-        t.equal(typeof domElement.onUpdate, 'function', 'domElement.onUpdate should be a function');
-        t.equal(typeof domElement.onDismount, 'function', 'domElement.onDismount should be a function');
-
-        t.deepEqual(
-            node.sentDrawCommands,
-            [],
-            'DOMElement should not send any draw commands before being mounted'
-        );
-
-        domElement.onMount(node, 0);
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'WITH', 'body/0', 'DOM', 'INIT_DOM', 'div', 'CHANGE_TRANSFORM', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
-            'DOMElement should send initial set of draw commands once mounted'
-        );
-
-        domElement.onUpdate();
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'WITH', 'body/0', 'DOM', 'INIT_DOM', 'div', 'CHANGE_TRANSFORM', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 'WITH', 'body/0', 'DOM', 'CHANGE_SIZE', 0, 0, 'CHANGE_PROPERTY', 'position', 'absolute', 'CHANGE_PROPERTY', '-webkit-transform-origin', '0% 0%', 'CHANGE_PROPERTY', 'transform-origin', '0% 0%', 'CHANGE_PROPERTY', '-webkit-backface-visibility', 'visible', 'CHANGE_PROPERTY', 'backface-visibility', 'visible', 'CHANGE_PROPERTY', '-webkit-transform-style', 'preserve-3d', 'CHANGE_PROPERTY', 'transform-style', 'preserve-3d', 'CHANGE_PROPERTY', '-webkit-tap-highlight-color', 'transparent', 'CHANGE_PROPERTY', 'pointer-events', 'auto', 'CHANGE_PROPERTY', 'z-index', '1', 'CHANGE_PROPERTY', 'box-sizing', 'border-box', 'CHANGE_PROPERTY', '-moz-box-sizing', 'border-box', 'CHANGE_PROPERTY', '-webkit-box-sizing', 'border-box', 'CHANGE_PROPERTY', 'display', true, 'CHANGE_PROPERTY', 'opacity', 1, 'CHANGE_PROPERTY', 'background', 'red', 'CHANGE_PROPERTY', 'color', 'green', 'CHANGE_ATTRIBUTE', 'data-fa-path', 'body/0' ],
-            'Updateing the node should result into appropriate draw commands ' +
-            'being appended to the command queue'
-        );
-        node.sentDrawCommands.length = 0;
-
-        domElement.onUpdate();
-        t.deepEqual(node.sentDrawCommands, []);
-
-        domElement.onDismount();
-        domElement.onUpdate();
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'WITH', 'body/0', 'DOM', 'CHANGE_PROPERTY', 'display', 'none', 'CHANGE_ATTRIBUTE', 'data-fa-path', '' ],
-            'Dismounting the node should result into the DOMElement being ' +
-            'hidden'
-        );
-    });
-
-    t.test('on, onReceive method', function(t) {
-        t.plan(4);
-
-        var node = createMockNode(t);
-        var domElement = new DOMElement(node);
-
+    t.test('constructor (no arguments)', function(t) {
         t.equal(
-            typeof domElement.on,
+            typeof DOMElement,
             'function',
-            'domElement.on should be a function'
+            'DOMElement should be a constructor function'
         );
 
-        t.equal(
-            typeof domElement.onReceive,
-            'function',
-            'domElement.onReceive should be a function'
-        );
+        var node = createMockNode(t);
+        var domElement = new DOMElement(node);
 
-        var actualEvent = {};
+        makeBreakPointAt = function(path) {
+            t.pass('should set breakpoint when node is being mounted');
+            t.equal(path, node.getLocation());
+        };
 
-        domElement.on('some event', function(receivedEvent) {
-            t.equal(
-                receivedEvent,
-                actualEvent,
-                'DOMElement should receive event payload of type "some event"'
+        get = function(path) {
+            t.pass(
+                'should query TransformSystem for local transform of current '+
+                'path'
             );
-        });
-
-        domElement.onReceive('some event', actualEvent);
-    });
-
-    t.test('setContent method', function(t) {
-        t.plan(4);
-
-        var node = new createMockNode(t);
-        var domElement = new DOMElement(node);
-        t.equal(
-            typeof domElement.setContent,
-            'function',
-            'domElement.setContent should be a function'
-        );
+            t.equal(path, node.getLocation());
+            return {
+                getLocalTransform: function() {
+                    return IDENT;
+                }
+            };
+        };
 
         domElement.onMount(node, 0);
-        domElement.setContent('some content');
-        domElement.onUpdate(1);
+
+        t.equal(
+            node.sentDrawCommands.length,
+            0,
+            'should not send any draw commands before initial update'
+        );
+
+        domElement.onUpdate(123);
+
         t.deepEqual(
-            node.sentDrawCommands.slice(node.sentDrawCommands.length - 2),
-            ['CHANGE_CONTENT', 'some content' ],
-            'should issue CHANGE_CONTENT command'
+            node.sentDrawCommands.slice(0, 2),
+            [Commands.WITH, node.getLocation()],
+            'should prefix commands with WITH command and path'
+        );
+
+        t.equal(
+            node.sentDrawCommands[2],
+            Commands.INIT_DOM,
+            'should send INIT_DOM command before any further requested DOM ' +
+            'mutations'
+        );
+
+        t.equal(
+            node.sentDrawCommands[3].toUpperCase(),
+            'div'.toUpperCase(),
+            'should Initialize DIV by default'
+        );
+
+        t.deepEqual(
+            node.sentDrawCommands.slice(4),
+            [
+                Commands.CHANGE_TRANSFORM,
+                    1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+                Commands.CHANGE_SIZE,
+                    0, 0,
+                Commands.ADD_CLASS,
+                    'famous-dom-element',
+                Commands.CHANGE_PROPERTY,
+                    'display', node.isShown() ? 'block' : 'none',
+                Commands.CHANGE_PROPERTY,
+                    'opacity', node.getOpacity(),
+                Commands.CHANGE_ATTRIBUTE,
+                    'data-fa-path', node.getLocation()
+            ],
+            'should set initial properties, attributes, classes and transform'
         );
 
         node.sentDrawCommands.length = 0;
-    });
 
-    t.test('setProperty method', function (t) {
-        t.plan(4);
+        domElement.onUpdate(124);
 
-        var node = new createMockNode(t);
-        var domElement = new DOMElement(node);
         t.equal(
-            typeof domElement.setProperty,
-            'function',
-            'domElement.setProperty should be a function'
+            node.sentDrawCommands.length,
+            0,
+            'should send all draw commands at once (after single update)'
         );
 
-        domElement.onMount(node, 0);
-        domElement.setProperty('background', 'red');
-        domElement.onUpdate(1);
+        makeBreakPointAt = null;
+        get = null;
 
-        // Properties are being read from an object. We can't make any
-        // assumptions about the order in which commands are being added to the
-        // command queue.
-
-        t.deepEqual(
-            node.sentDrawCommands,
-            [ 'WITH', 'body/0', 'DOM', 'INIT_DOM', 'div', 'CHANGE_TRANSFORM', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 'WITH', 'body/0', 'DOM', 'CHANGE_SIZE', 0, 0, 'CHANGE_PROPERTY', 'position', 'absolute', 'CHANGE_PROPERTY', '-webkit-transform-origin', '0% 0%', 'CHANGE_PROPERTY', 'transform-origin', '0% 0%', 'CHANGE_PROPERTY', '-webkit-backface-visibility', 'visible', 'CHANGE_PROPERTY', 'backface-visibility', 'visible', 'CHANGE_PROPERTY', '-webkit-transform-style', 'preserve-3d', 'CHANGE_PROPERTY', 'transform-style', 'preserve-3d', 'CHANGE_PROPERTY', '-webkit-tap-highlight-color', 'transparent', 'CHANGE_PROPERTY', 'pointer-events', 'auto', 'CHANGE_PROPERTY', 'z-index', '1', 'CHANGE_PROPERTY', 'box-sizing', 'border-box', 'CHANGE_PROPERTY', '-moz-box-sizing', 'border-box', 'CHANGE_PROPERTY', '-webkit-box-sizing', 'border-box', 'CHANGE_PROPERTY', 'display', true, 'CHANGE_PROPERTY', 'opacity', 1, 'CHANGE_PROPERTY', 'background', 'red', 'CHANGE_PROPERTY', 'color', 'green', 'CHANGE_ATTRIBUTE', 'data-fa-path', 'body/0' ],
-            'should issue CHANGE_PROPERTY command'
-        );
+        t.end();
     });
+
+    // t.test('constructor (custom options)', function(t) {
+    //     t.comment(
+    //         'Passing in an initial set of properties, attributes and a ' +
+    //         'tagName should result into appropriate commands being enqueued'
+    //     );
+    //
+    //     var node = createMockNode(t);
+    //     var domElement = new DOMElement(node, {
+    //         tagName: 'section',
+    //         properties: {
+    //             background: 'red',
+    //             color: 'green'
+    //         },
+    //         attributes: {
+    //             title: 'some title'
+    //         },
+    //         classes: ['some-class-name', 'some-other-class-name'],
+    //         content: '<div>Test</div>'
+    //     });
+    //
+    //     makeBreakPointAt = function() {};
+    //
+    //     get = function() {
+    //         return {
+    //             getLocalTransform: function() {
+    //                 return IDENT;
+    //             }
+    //         };
+    //     };
+    //
+    //     domElement.onMount(node, 0);
+    //     domElement.onUpdate(123);
+    //
+    //     console.log(node.sentDrawCommands)
+    //
+    //
+    //     t.deepEqual(
+    //         node.sentDrawCommands.slice(2),
+    //         [
+    //             Commands.INIT_DOM,
+    //                 'section',
+    //             Commands.CHANGE_TRANSFORM,
+    //                 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+    //             Commands.CHANGE_SIZE,
+    //                 0, 0,
+    //             Commands.ADD_CLASS,
+    //                 'famous-dom-element',
+    //             Commands.CHANGE_PROPERTY,
+    //                 'display', node.isShown() ? 'block' : 'none',
+    //             Commands.CHANGE_PROPERTY,
+    //                 'opacity', node.getOpacity(),
+    //             Commands.CHANGE_ATTRIBUTE,
+    //                 'data-fa-path', node.getLocation()
+    //         ],
+    //         'should set initial properties, attributes, classes and transform'
+    //     );
+    //
+    //
+    //
+    //       7,
+    //       'famous-dom-element',
+    //       7,
+    //       'some-class-name',
+    //       7,
+    //       'some-other-class-name',
+    //       5,
+    //       '<div>Test</div>',
+    //       4,
+    //       'display',
+    //       'block',
+    //       4,
+    //       'opacity',
+    //       0.5,
+    //       4,
+    //       'background',
+    //       'red',
+    //       4,
+    //       'color',
+    //       'green',
+    //       6,
+    //       'title',
+    //       'some title',
+    //       6,
+    //       'data-fa-path',
+    //       'body/0' ]
+    //
+    //     makeBreakPointAt = null;
+    //     get = null;
+    // });
+
+    // t.test('constructor (custom options)', function(t) {
+    //     t.comment(
+    //         'Passing in an initial set of properties, attributes and a ' +
+    //         'tagName should result into appropriate commands being enqueued'
+    //     );
+    //
+    //     t.plan(6);
+    //
+    //     var node = createMockNode(t);
+    //     var domElement = new DOMElement(node, {
+    //         tagName: 'section',
+    //         properties: {
+    //             background: 'red',
+    //             color: 'green'
+    //         },
+    //         attributes: {
+    //             title: 'some title'
+    //         },
+    //         classes: ['some-class'],
+    //         content: '<div>Test</div>'
+    //     });
+    //     domElement.onMount(node, 0);
+    //
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [ 'WITH', 'body/0', 'DOM', 'INIT_DOM', 'section', 'CHANGE_TRANSFORM', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
+    //         'should sendDrawCommands after initial onUpdate after when ' +
+    //         'mounted using onMount'
+    //     );
+    //     node.sentDrawCommands.length = 0;
+    //     domElement.onUpdate();
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [ 'WITH', 'body/0', 'DOM', 'CHANGE_SIZE', 0, 0, 'ADD_CLASS', 'some-class', 'CHANGE_CONTENT', '<div>Test</div>', 'CHANGE_PROPERTY', 'position', 'absolute', 'CHANGE_PROPERTY', '-webkit-transform-origin', '0% 0%', 'CHANGE_PROPERTY', 'transform-origin', '0% 0%', 'CHANGE_PROPERTY', '-webkit-backface-visibility', 'visible', 'CHANGE_PROPERTY', 'backface-visibility', 'visible', 'CHANGE_PROPERTY', '-webkit-transform-style', 'preserve-3d', 'CHANGE_PROPERTY', 'transform-style', 'preserve-3d', 'CHANGE_PROPERTY', '-webkit-tap-highlight-color', 'transparent', 'CHANGE_PROPERTY', 'pointer-events', 'auto', 'CHANGE_PROPERTY', 'z-index', '1', 'CHANGE_PROPERTY', 'box-sizing', 'border-box', 'CHANGE_PROPERTY', '-moz-box-sizing', 'border-box', 'CHANGE_PROPERTY', '-webkit-box-sizing', 'border-box', 'CHANGE_PROPERTY', 'display', true, 'CHANGE_PROPERTY', 'opacity', 1, 'CHANGE_PROPERTY', 'background', 'red', 'CHANGE_PROPERTY', 'color', 'green', 'CHANGE_ATTRIBUTE', 'title', 'some title', 'CHANGE_ATTRIBUTE', 'data-fa-path', 'body/0' ],
+    //         'should send initial styles on first update'
+    //     );
+    //     node.sentDrawCommands.length = 0;
+    //     domElement.onUpdate();
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [],
+    //         'should not send any draw commands after inital update'
+    //     );
+    // });
+
+    // t.test('should get initial spec from node', function(t) {
+    //     t.plan(5);
+    //
+    //     var node = createMockNode(t);
+    //
+    //     node.sentDrawCommands = ['EXISTING', 'DRAW', 'COMMANDS'];
+    //     node.shown = false;
+    //     node.location = 'body/4/45/4/5';
+    //     node.transform = [
+    //         0.5, 0, 0, 0,
+    //         0, 0.5, 0, 0,
+    //         0, 0, 0.5, 0,
+    //         0, 0, 0, 0.5
+    //     ];
+    //     node.size = [100, 200, 300];
+    //     node.sizeMode = [1, 1, 1];
+    //     node.uiEvents = [];
+    //     node.opacity = 0.4;
+    //
+    //     var domElement = new DOMElement(node);
+    //     domElement.onMount(node, 3);
+    //
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [ 'EXISTING', 'DRAW', 'COMMANDS', 'WITH', 'body/4/45/4/5', 'DOM', 'INIT_DOM', 'div', 'CHANGE_TRANSFORM', 0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5 ],
+    //         'should sendDrawCommands after initial onUpdate after when ' +
+    //         'mounted using onMount. Should have used Node spec.'
+    //     );
+    //     node.sentDrawCommands.length = 0;
+    //     domElement.onUpdate();
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [ 'WITH', 'body/4/45/4/5', 'DOM', 'CHANGE_SIZE', 100, 200, 'CHANGE_PROPERTY', 'position', 'absolute', 'CHANGE_PROPERTY', '-webkit-transform-origin', '0% 0%', 'CHANGE_PROPERTY', 'transform-origin', '0% 0%', 'CHANGE_PROPERTY', '-webkit-backface-visibility', 'visible', 'CHANGE_PROPERTY', 'backface-visibility', 'visible', 'CHANGE_PROPERTY', '-webkit-transform-style', 'preserve-3d', 'CHANGE_PROPERTY', 'transform-style', 'preserve-3d', 'CHANGE_PROPERTY', '-webkit-tap-highlight-color', 'transparent', 'CHANGE_PROPERTY', 'pointer-events', 'auto', 'CHANGE_PROPERTY', 'z-index', '1', 'CHANGE_PROPERTY', 'box-sizing', 'border-box', 'CHANGE_PROPERTY', '-moz-box-sizing', 'border-box', 'CHANGE_PROPERTY', '-webkit-box-sizing', 'border-box', 'CHANGE_PROPERTY', 'opacity', 0.4, 'CHANGE_PROPERTY', 'background', 'red', 'CHANGE_PROPERTY', 'color', 'green', 'CHANGE_ATTRIBUTE', 'data-fa-path', 'body/4/45/4/5' ],
+    //         'should send initial styles on first update. Should take into ' +
+    //         'account size, UI Events etc. from Node'
+    //     );
+    //     node.sentDrawCommands.length = 0;
+    //     domElement.onUpdate();
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [],
+    //         'should not send any draw commands after inital update'
+    //     );
+    // });
+    //
+    // t.test('onMount, onUpdate, onDismount lifecyle', function(t) {
+    //     t.plan(11);
+    //
+    //     var node = createMockNode(t);
+    //     var domElement = new DOMElement(node);
+    //
+    //     t.equal(typeof domElement.onMount, 'function', 'domElement.onMount should be a function');
+    //     t.equal(typeof domElement.onUpdate, 'function', 'domElement.onUpdate should be a function');
+    //     t.equal(typeof domElement.onDismount, 'function', 'domElement.onDismount should be a function');
+    //
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [],
+    //         'DOMElement should not send any draw commands before being mounted'
+    //     );
+    //
+    //     domElement.onMount(node, 0);
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [ 'WITH', 'body/0', 'DOM', 'INIT_DOM', 'div', 'CHANGE_TRANSFORM', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
+    //         'DOMElement should send initial set of draw commands once mounted'
+    //     );
+    //
+    //     domElement.onUpdate();
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [ 'WITH', 'body/0', 'DOM', 'INIT_DOM', 'div', 'CHANGE_TRANSFORM', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 'WITH', 'body/0', 'DOM', 'CHANGE_SIZE', 0, 0, 'CHANGE_PROPERTY', 'position', 'absolute', 'CHANGE_PROPERTY', '-webkit-transform-origin', '0% 0%', 'CHANGE_PROPERTY', 'transform-origin', '0% 0%', 'CHANGE_PROPERTY', '-webkit-backface-visibility', 'visible', 'CHANGE_PROPERTY', 'backface-visibility', 'visible', 'CHANGE_PROPERTY', '-webkit-transform-style', 'preserve-3d', 'CHANGE_PROPERTY', 'transform-style', 'preserve-3d', 'CHANGE_PROPERTY', '-webkit-tap-highlight-color', 'transparent', 'CHANGE_PROPERTY', 'pointer-events', 'auto', 'CHANGE_PROPERTY', 'z-index', '1', 'CHANGE_PROPERTY', 'box-sizing', 'border-box', 'CHANGE_PROPERTY', '-moz-box-sizing', 'border-box', 'CHANGE_PROPERTY', '-webkit-box-sizing', 'border-box', 'CHANGE_PROPERTY', 'display', true, 'CHANGE_PROPERTY', 'opacity', 1, 'CHANGE_PROPERTY', 'background', 'red', 'CHANGE_PROPERTY', 'color', 'green', 'CHANGE_ATTRIBUTE', 'data-fa-path', 'body/0' ],
+    //         'Updateing the node should result into appropriate draw commands ' +
+    //         'being appended to the command queue'
+    //     );
+    //     node.sentDrawCommands.length = 0;
+    //
+    //     domElement.onUpdate();
+    //     t.deepEqual(node.sentDrawCommands, []);
+    //
+    //     domElement.onDismount();
+    //     domElement.onUpdate();
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [ 'WITH', 'body/0', 'DOM', 'CHANGE_PROPERTY', 'display', 'none', 'CHANGE_ATTRIBUTE', 'data-fa-path', '' ],
+    //         'Dismounting the node should result into the DOMElement being ' +
+    //         'hidden'
+    //     );
+    // });
+    //
+    // t.test('on, onReceive method', function(t) {
+    //     t.plan(4);
+    //
+    //     var node = createMockNode(t);
+    //     var domElement = new DOMElement(node);
+    //
+    //     t.equal(
+    //         typeof domElement.on,
+    //         'function',
+    //         'domElement.on should be a function'
+    //     );
+    //
+    //     t.equal(
+    //         typeof domElement.onReceive,
+    //         'function',
+    //         'domElement.onReceive should be a function'
+    //     );
+    //
+    //     var actualEvent = {};
+    //
+    //     domElement.on('some event', function(receivedEvent) {
+    //         t.equal(
+    //             receivedEvent,
+    //             actualEvent,
+    //             'DOMElement should receive event payload of type "some event"'
+    //         );
+    //     });
+    //
+    //     domElement.onReceive('some event', actualEvent);
+    // });
+    //
+    // t.test('setContent method', function(t) {
+    //     t.plan(4);
+    //
+    //     var node = new createMockNode(t);
+    //     var domElement = new DOMElement(node);
+    //     t.equal(
+    //         typeof domElement.setContent,
+    //         'function',
+    //         'domElement.setContent should be a function'
+    //     );
+    //
+    //     domElement.onMount(node, 0);
+    //     domElement.setContent('some content');
+    //     domElement.onUpdate(1);
+    //     t.deepEqual(
+    //         node.sentDrawCommands.slice(node.sentDrawCommands.length - 2),
+    //         ['CHANGE_CONTENT', 'some content' ],
+    //         'should issue CHANGE_CONTENT command'
+    //     );
+    //
+    //     node.sentDrawCommands.length = 0;
+    // });
+    //
+    // t.test('setProperty method', function (t) {
+    //     t.plan(4);
+    //
+    //     var node = new createMockNode(t);
+    //     var domElement = new DOMElement(node);
+    //     t.equal(
+    //         typeof domElement.setProperty,
+    //         'function',
+    //         'domElement.setProperty should be a function'
+    //     );
+    //
+    //     domElement.onMount(node, 0);
+    //     domElement.setProperty('background', 'red');
+    //     domElement.onUpdate(1);
+    //
+    //     // Properties are being read from an object. We can't make any
+    //     // assumptions about the order in which commands are being added to the
+    //     // command queue.
+    //
+    //     t.deepEqual(
+    //         node.sentDrawCommands,
+    //         [ 'WITH', 'body/0', 'DOM', 'INIT_DOM', 'div', 'CHANGE_TRANSFORM', 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 'WITH', 'body/0', 'DOM', 'CHANGE_SIZE', 0, 0, 'CHANGE_PROPERTY', 'position', 'absolute', 'CHANGE_PROPERTY', '-webkit-transform-origin', '0% 0%', 'CHANGE_PROPERTY', 'transform-origin', '0% 0%', 'CHANGE_PROPERTY', '-webkit-backface-visibility', 'visible', 'CHANGE_PROPERTY', 'backface-visibility', 'visible', 'CHANGE_PROPERTY', '-webkit-transform-style', 'preserve-3d', 'CHANGE_PROPERTY', 'transform-style', 'preserve-3d', 'CHANGE_PROPERTY', '-webkit-tap-highlight-color', 'transparent', 'CHANGE_PROPERTY', 'pointer-events', 'auto', 'CHANGE_PROPERTY', 'z-index', '1', 'CHANGE_PROPERTY', 'box-sizing', 'border-box', 'CHANGE_PROPERTY', '-moz-box-sizing', 'border-box', 'CHANGE_PROPERTY', '-webkit-box-sizing', 'border-box', 'CHANGE_PROPERTY', 'display', true, 'CHANGE_PROPERTY', 'opacity', 1, 'CHANGE_PROPERTY', 'background', 'red', 'CHANGE_PROPERTY', 'color', 'green', 'CHANGE_ATTRIBUTE', 'data-fa-path', 'body/0' ],
+    //         'should issue CHANGE_PROPERTY command'
+    //     );
+    // });
 });

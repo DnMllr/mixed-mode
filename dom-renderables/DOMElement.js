@@ -84,7 +84,7 @@ function DOMElement (node, options) {
 
     this._callbacks = new CallbackStore();
 
-    this.setProperty('display', node.isShown() ? 'none' : 'block');
+    this.setProperty('display', node.isShown() ? 'block' : 'show');
     this.onOpacityChange(node.getOpacity());
 
     if (!options) return;

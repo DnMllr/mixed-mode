@@ -6,8 +6,8 @@
   "scripts": {
     "test-components": "browserify components/test/*.js | tap-closer | smokestack -b firefox | tap-spec",
     "test-core": "browserify core/test/*.js | tap-closer | smokestack -b firefox | tap-spec",
-    "test-dom-renderables": "browserify dom-renderables/test/*.js | tap-closer | smokestack -b firefox | tap-spec",
-    "test-dom-renderers": "browserify dom-renderers/test/*.js | tap-closer | smokestack -b firefox | tap-spec",
+    "test-dom-renderables": "browserify dom-renderables/test/*.js -p proxyquireify/plugin | smokestack -b firefox",
+    "test-dom-renderers": "browserify dom-renderers/test/*.js | tap-closer | smokestack -b firefox",
     "test-engine": "browserify engine/test/*.js | tap-closer | smokestack -b firefox | tap-spec",
     "test-math": "browserify math/test/*.js | tap-closer | smokestack -b firefox | tap-spec",
     "test-physics": "browserify physics/test/*.js physics/test/*/*.js | tap-closer | smokestack -b firefox | tap-spec",
@@ -34,6 +34,7 @@
     "jscs": "^1.13.1",
     "jshint": "^2.7.0",
     "jshint-stylish": "^1.0.2",
+    "proxyquireify": "^2.0.0",
     "smokestack": "^3.2.2",
     "tap-closer": "^1.0.0",
     "tap-spec": "^3.0.0",
